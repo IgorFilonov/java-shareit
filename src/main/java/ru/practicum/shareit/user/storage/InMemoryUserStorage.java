@@ -13,40 +13,46 @@ public class InMemoryUserStorage implements UserStorage {
     private final AtomicLong idGenerator = new AtomicLong(1);
 
     @Override
-    public User create(User user) {
-        long id = idGenerator.getAndIncrement();
-        user.setId(id);
-        users.put(id, user);
-        return user;
-    }
-
-    @Override
-    public User update(User user) {
-        if (!users.containsKey(user.getId())) {
-            throw new NotFoundException("Пользователь не найден");
+    public User save(User user) {
+        if (user.getId() == null) {
+            // Create new user
+            long id = idGenerator.getAndIncrement();
+            user.setId(id);
+            users.put(id, user);
+            return user;
+        } else {
+            // Update existing user
+            if (!users.containsKey(user.getId())) {
+                throw new NotFoundException("User not found");
+            }
+            users.put(user.getId(), user);
+            return user;
         }
-        users.put(user.getId(), user);
-        return user;
     }
 
     @Override
-    public Optional<User> getById(Long userId) {
-        return Optional.ofNullable(users.get(userId));
+    public Optional<User> findById(Long id) {
+        return Optional.ofNullable(users.get(id));
     }
 
     @Override
-    public List<User> getAll() {
+    public List<User> findAll() {
         return new ArrayList<>(users.values());
-    }
-
-    @Override
-    public void delete(Long userId) {
-        users.remove(userId);
     }
 
     @Override
     public boolean existsByEmail(String email) {
         return users.values().stream()
                 .anyMatch(user -> user.getEmail().equals(email));
+    }
+
+    @Override
+    public boolean existsById(Long id) {
+        return users.containsKey(id);
+    }
+
+    @Override
+    public void deleteById(Long id) {
+        users.remove(id);
     }
 }

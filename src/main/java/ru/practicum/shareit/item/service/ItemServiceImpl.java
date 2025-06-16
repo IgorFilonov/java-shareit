@@ -1,82 +1,97 @@
 package ru.practicum.shareit.item.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.practicum.shareit.exception.NotFoundException;
+import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.mapper.ItemMapper;
 import ru.practicum.shareit.item.model.Item;
 import ru.practicum.shareit.item.storage.ItemStorage;
 import ru.practicum.shareit.user.User;
+import ru.practicum.shareit.user.dto.UserDto;
+import ru.practicum.shareit.user.mapper.UserMapper;
 import ru.practicum.shareit.user.service.UserService;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-@Slf4j
 @RequiredArgsConstructor
 public class ItemServiceImpl implements ItemService {
     private final ItemStorage itemStorage;
     private final UserService userService;
 
     @Override
+    public ItemDto create(long userId, ItemDto itemDto) {
+        Item item = ItemMapper.toItem(itemDto);
+        return ItemMapper.toItemDto(this.create(item, userId));
+    }
+
+    @Override
     public Item create(Item item, Long userId) {
-        userService.getById(userId);
+        UserDto userDto = userService.getUserById(userId); // Получаем UserDto
+        User owner = UserMapper.toUser(userDto); // Преобразуем в User
+        item.setOwner(owner);
         validateItem(item);
         return itemStorage.create(item);
     }
 
     @Override
-    public Item update(Long itemId, Item item, Long userId) {
-        Item existingItem = getById(itemId, userId);
+    public ItemDto update(long itemId, long userId, ItemDto itemDto) {
+        Item existingItem = getItemById(itemId, userId);
 
-        if (item.getName() != null) {
-            existingItem.setName(item.getName());
+        if (itemDto.getName() != null) {
+            existingItem.setName(itemDto.getName());
         }
-        if (item.getDescription() != null) {
-            existingItem.setDescription(item.getDescription());
+        if (itemDto.getDescription() != null) {
+            existingItem.setDescription(itemDto.getDescription());
         }
-        if (item.getAvailable() != null) {
-            existingItem.setAvailable(item.getAvailable());
+        if (itemDto.getAvailable() != null) {
+            existingItem.setAvailable(itemDto.getAvailable());
         }
 
-        return itemStorage.update(existingItem);
+        return ItemMapper.toItemDto(itemStorage.update(existingItem));
     }
 
     @Override
-    public Item getById(Long itemId, Long userId) {
-        userService.getById(userId);
-        return itemStorage.getById(itemId)
-                .orElseThrow(() -> new NotFoundException("Элемент не найден"));
+    public ItemDto getById(long itemId, long userId) {
+        return ItemMapper.toItemDto(getItemById(itemId, userId));
     }
 
     @Override
-    public List<Item> getAllByOwner(Long userId) {
-        User owner = userService.getById(userId);
-        List<Item> items = itemStorage.getAllByOwner(userId);
-        System.out.println("[DEBUG] Found " + items.size() + " элементы для пользователя " + userId);
-        return items;
+    public List<ItemDto> getAllByOwner(long userId) {
+        userService.getUserById(userId);
+        return itemStorage.getAllByOwner(userId).stream()
+                .map(ItemMapper::toItemDto)
+                .collect(Collectors.toList());
     }
 
     @Override
-    public List<Item> search(String text) {
+    public List<ItemDto> search(String text) {
         if (text.isBlank()) {
             return List.of();
         }
         return itemStorage.search(text).stream()
                 .filter(Item::getAvailable)
+                .map(ItemMapper::toItemDto)
                 .collect(Collectors.toList());
+    }
+
+    private Item getItemById(long itemId, long userId) {
+        userService.getUserById(userId);
+        return itemStorage.getById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found"));
     }
 
     private void validateItem(Item item) {
         if (item.getName() == null || item.getName().isBlank()) {
-            throw new IllegalArgumentException("Имя не может быть пустым");
+            throw new IllegalArgumentException("Name cannot be empty");
         }
         if (item.getDescription() == null || item.getDescription().isBlank()) {
-            throw new IllegalArgumentException("Описание не может быть пустым");
+            throw new IllegalArgumentException("Description cannot be empty");
         }
         if (item.getAvailable() == null) {
-            throw new IllegalArgumentException("Статус не может быть нулевым");
+            throw new IllegalArgumentException("Available status cannot be null");
         }
     }
 }
